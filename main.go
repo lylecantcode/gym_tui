@@ -60,10 +60,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 
-	// Is it a key press?
+	// Is the input a key press?
 	case tea.KeyMsg:
 
-		// Cool, what was the actual key pressed?
+		// What key was pressed?
 		switch msg.String() {
 
 		// These keys should exit the program.
@@ -84,32 +84,35 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.cursor++
 			}
 
-		// The "enter" key toggles the selected state for the item that the cursor is pointing at.
-		// if pointing at addNew, this then allows a new value to be typed in.
-		// de-focus to stop input and update DB selection boolean.
+		// The "enter" key allows for a set to be inputted.
 		case "enter":
 			if m.cursor < len(m.choices) {
+				// unfocuses if still focused.
 				m.addingNew.Blur()
-				// m.checkItem(m.cursor)
+				// check if the weight is currently selected, only one should be selected at a time.
 				_, ok := m.selected[m.cursor]
 				if ok {
-					m.addNewItem()
+					// if it is already selected then submit the value. 
+					m.addNewSet()
+					// then delete the selection
 					delete(m.selected, m.cursor)
 				} else {
+					// otherwise, select the item and focus on the text field.
 					m.selected[m.cursor] = struct{}{}
 					m.addingNew.Focus()
 					m.typing = true
 				}
 			}
+		// allows the deletion of an exercise, feature will likely be removed or changed.	
 		case "delete", "backspace":
 			if m.cursor < len(m.choices) && !m.typing {
-				delete(m.selected, m.cursor) // otherwise [x] will be retained visually.
 				m.deleteItems(m.choices[m.cursor])
 				m.choices = deleteChoice(m.choices, m.cursor)
 			}
 		}
 	}
-	cmd = m.updateInputs(msg) // used to drive the addNewItem functionality.
+	// used to drive the addNewSet functionality.
+	cmd = m.updateInputs(msg) 
 	return m, cmd
 }
 
@@ -123,7 +126,7 @@ func deleteChoice(s []string, index int) []string {
 // reset addingNew back to default state
 // delete selection of addNew, reselect newly inserted item
 // add new item to DB
-func (m *model) addNewItem() {
+func (m *model) addNewSet() {
 	newItem := m.addingNew.Value()
 	pos := m.choices[m.cursor]
 	if m.weights[pos] == nil {
