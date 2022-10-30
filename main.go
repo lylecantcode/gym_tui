@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	"strings"
-	// "github.com/charmbracelet/lipgloss" // package for the future, for style changes.
 	_ "github.com/mattn/go-sqlite3"
 	"os"
 	"regexp"
@@ -19,18 +17,18 @@ var TODAY string = time.Now().Format("02-01-2006")
 
 type model struct {
 	choices   []string
-	weights   map[string][]string // items on the to-do list
+	weights   map[string][]string // weights on the to-do list
 	cursor    int                 // which list item our cursor is pointing at
-	selected  map[int]struct{}    // which items are selected
+	selected  map[int]struct{}    // which weights are selected
 	addingNew textinput.Model     // used to add new values
 	typing    bool                // used to stop delete or quit triggering accidentally
 }
 
 func initialModel() model {
 	items := model{selected: make(map[int]struct{})}
-	values := getValues()
+	values := getValuesFromDB()
 	insertModel := textinput.New()
-	insertModel.Placeholder = "Type Weight (kg) x Reps here"
+	insertModel.Placeholder = "After selecting, type Weight (kg) x Reps here"
 	insertModel.Prompt = ""    // we do not want an additional prompt for the "add new item"
 	insertModel.CharLimit = 20 // character limit will limit potentially problematic entries
 	insertModel.Width = 20     // this limits the field of view when typing to X characters long
@@ -45,7 +43,7 @@ func initialModel() model {
 	// TODO: need to write a way to handle empty weights/reps to provide the original empty list
 	var setSlice []string
 	for i := 0; i < len(items.choices); i++ {
-		items.addItems(setSlice, items.choices[i])
+		items.addToDB(setSlice, items.choices[i])
 	}
 
 	return items
@@ -70,7 +68,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			if msg.String() == "ctrl+c" || !m.typing {
 				return m, tea.Quit
-			} 
+			}
 
 		// The "up" key moves the cursor up
 		case "up", "shift+tab":
@@ -80,7 +78,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// The "down" key moves the cursor down
 		case "down", "tab":
-			if m.cursor < len(m.choices) { //-1 {
+			if m.cursor < len(m.choices)-1 {
 				m.cursor++
 			}
 
@@ -92,55 +90,30 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				// check if the weight is currently selected, only one should be selected at a time.
 				_, ok := m.selected[m.cursor]
 				if ok {
-					// if it is already selected then submit the value. 
+					// if it is already selected then submit the value.
 					m.addNewSet()
 					// then delete the selection
 					delete(m.selected, m.cursor)
 				} else {
 					// otherwise, select the item and focus on the text field.
+					// use of struct{}{} minimises memory cost.
 					m.selected[m.cursor] = struct{}{}
 					m.addingNew.Focus()
 					m.typing = true
 				}
 			}
-		// allows the deletion of an exercise, feature will likely be removed or changed.	
+		// allows the deletion of an exercise, feature will likely be removed or changed.
 		case "delete", "backspace":
+			// stops the backspace key from deleting an exercise if fixing a typo!
 			if m.cursor < len(m.choices) && !m.typing {
-				m.deleteItems(m.choices[m.cursor])
+				m.deleteExerciseFromDB(m.choices[m.cursor])
 				m.choices = deleteChoice(m.choices, m.cursor)
 			}
 		}
 	}
 	// used to drive the addNewSet functionality.
-	cmd = m.updateInputs(msg) 
+	cmd = m.updateInputs(msg)
 	return m, cmd
-}
-
-// Change to remove last rep.
-func deleteChoice(s []string, index int) []string {
-	return append(s[:index], s[index+1:]...)
-}
-
-// insert new item to choices, from the addingNew model
-// unfocus to stop further input
-// reset addingNew back to default state
-// delete selection of addNew, reselect newly inserted item
-// add new item to DB
-func (m *model) addNewSet() {
-	newItem := m.addingNew.Value()
-	pos := m.choices[m.cursor]
-	if m.weights[pos] == nil {
-		m.weights = make(map[string][]string)
-	}
-	m.addingNew.Blur()
-	m.addingNew.Reset()
-	re := regexp.MustCompile(`\d+`)
-	set := re.FindAllString(newItem, -1)
-	if len(set) == 2 {
-		m.weights[pos] = append(m.weights[pos], "("+set[0]+"kg x "+set[1]+")")
-		m.addItems(set, pos)
-	}
-	m.typing = false
 }
 
 // handles typing once focused.
@@ -150,25 +123,11 @@ func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-func (m *model) dupeCheck() bool {
-	newItem := m.addingNew.Value()
-	if newItem == " " || newItem == "" {
-		return true
-	}
-	for i, v := range m.choices {
-		if strings.ToLower(v) == strings.ToLower(newItem) {
-			m.selected[i] = struct{}{}
-			return true
-		}
-	}
-	return false
-}
-
 func (m model) View() string {
 	// The header
-	s := "What exercise did you do? (navigate with arrow keys and use enter to select)\n\n"
+	s := "What exercise did you do?\n\n"
 
-	// Iterate over our choices
+	// Iterate over our choices.
 	for i := 0; i < len(m.choices); i++ {
 
 		// Is the cursor pointing at this choice?
@@ -183,26 +142,49 @@ func (m model) View() string {
 			checked = "x" // selected!
 		}
 
-		// Render the row
-		if i < len(m.choices) {
-			s += fmt.Sprintf("%s [%s] %s %s\n", cursor, checked, m.choices[i], m.weights[m.choices[i]])
-		} else {
-			// Render the addingNew row, both in "adding" state and in default state.
-			s += fmt.Sprintf("%s\n", m.addingNew.View())
-		}
+		// Render the rows
+		s += fmt.Sprintf("%s [%s] %s %s\n", cursor, checked, m.choices[i], m.weights[m.choices[i]])
 	}
+	// Render the addingNew row, both in "adding" state and in default state.
+	s += fmt.Sprintf("%s\n\n", m.addingNew.View())
+
 	// The footer
-	s += "\nPress Delete to delete an item. \nPress Q or Ctrl+C to quit.\n"
+	s += `Navigate using the arrow keys and use enter to select.
+Press Delete to delete an exercise. 
+Press Q or Ctrl+C to quit.`
 	return s
 }
 
-func main() {
-	p := tea.NewProgram(initialModel())
-	if err := p.Start(); err != nil {
-		fmt.Printf("Alas, there's been an error: %v", err)
-		os.Exit(1)
+func (m *model) addNewSet() {
+	// obtains the value from the "add new" line
+	newItem := m.addingNew.Value()
+	pos := m.choices[m.cursor]
+	// checks for existing map and if none, initiates map
+	if m.weights[pos] == nil {
+		m.weights = make(map[string][]string)
 	}
+	// unfocus/deselect the "add new" line
+	m.addingNew.Blur()
+	// reset the "add new" line back to default values
+	m.addingNew.Reset()
+	// check for groupings of numbers and ignores any other values.
+	re := regexp.MustCompile(`\d+`)
+	set := re.FindAllString(newItem, -1)
+	// if 2 groups of numbers, i.e. weights and sets
+	if len(set) == 2 {
+		// add new set to exercise in fixed format
+		m.weights[pos] = append(m.weights[pos], "("+set[0]+"kg x "+set[1]+")")
+		// add new set to DB
+		m.addToDB(set, pos)
+	}
+	m.typing = false
 }
+
+// delete an exercise from the list by creating a new slice of all other items.
+func deleteChoice(s []string, index int) []string {
+	return append(s[:index], s[index+1:]...)
+}
+
 
 // create a basic database table if it doesn't exist.
 func dbStartUp() *sql.DB {
@@ -215,8 +197,9 @@ func dbStartUp() *sql.DB {
 	return database
 }
 
-func (m model) addItems(set []string, exercise string) {
+func (m model) addToDB(set []string, exercise string) {
 	if len(set) == 2 {
+		// based on the requested format:
 		weight, _ := strconv.Atoi(set[0])
 		reps, _ := strconv.Atoi(set[1])
 		statement, _ :=
@@ -229,29 +212,29 @@ func (m model) addItems(set []string, exercise string) {
 	}
 }
 
-func (m model) deleteItems(item string) {
+func (m model) deleteExerciseFromDB(exercise string) {
 	statement, _ :=
 		db.Prepare("DELETE FROM gym_routine WHERE exercise = ?")
-	statement.Exec(item)
+	statement.Exec(exercise)
 }
 
-// func (m model) checkItem(i int) {
-// 	statement, _ :=
-// 		db.Prepare("UPDATE gym_routine SET checked = NOT checked WHERE exercise = ?")
-// 	statement.Exec(m.choices[i])
-// }
-
-// prepopulate the choices if there is an existing database, rather than using default values
-// i.e. memory between sessions.
-func getValues() []string {
-	var item string
-	itemArray := []string{}
+func getValuesFromDB() []string {
+	var exercise string
+	exerciseArray := []string{}
 
 	rows, _ :=
 		db.Query("SELECT exercise FROM gym_routine")
 	for rows.Next() {
-		rows.Scan(&item)
-		itemArray = append(itemArray, item)
+		rows.Scan(&exercise)
+		exerciseArray = append(exerciseArray, exercise)
 	}
-	return itemArray
+	return exerciseArray
+}
+
+func main() {
+	p := tea.NewProgram(initialModel())
+	if err := p.Start(); err != nil {
+		fmt.Printf("Gym TUI encountered the following error: %v", err)
+		os.Exit(1)
+	}
 }
