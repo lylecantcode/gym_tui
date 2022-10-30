@@ -166,7 +166,7 @@ func (m model) View() string {
 	s := "What exercise did you do? (navigate with arrow keys and use enter to select)\n\n"
 
 	// Iterate over our choices
-	for i := 0; i <= len(m.choices); i++ {
+	for i := 0; i < len(m.choices); i++ {
 
 		// Is the cursor pointing at this choice?
 		cursor := " " // no cursor
