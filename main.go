@@ -9,20 +9,21 @@ import (
 	// "github.com/charmbracelet/lipgloss" // package for the future, for style changes.
 	_ "github.com/mattn/go-sqlite3"
 	"os"
-	"time"
 	"regexp"
 	"strconv"
+	"time"
 )
 
 var db = dbStartUp()
 var TODAY string = time.Now().Format("02-01-2006")
 
 type model struct {
-	choices []string
-	weights   map[string][]string         // items on the to-do list
-	cursor    int              // which list item our cursor is pointing at
-	selected  map[int]struct{} // which items are selected
-	addingNew textinput.Model  // used to add new values
+	choices   []string
+	weights   map[string][]string // items on the to-do list
+	cursor    int                 // which list item our cursor is pointing at
+	selected  map[int]struct{}    // which items are selected
+	addingNew textinput.Model     // used to add new values
+	typing    bool                // used to stop delete or quit triggering accidentally
 }
 
 func initialModel() model {
@@ -41,7 +42,7 @@ func initialModel() model {
 	}
 	items.addingNew = insertModel
 
-	// TODO: need to write a way to handle empty weights/reps to provide the original empty list 
+	// TODO: need to write a way to handle empty weights/reps to provide the original empty list
 	var setSlice []string
 	for i := 0; i < len(items.choices); i++ {
 		items.addItems(setSlice, items.choices[i])
@@ -67,7 +68,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// These keys should exit the program.
 		case "ctrl+c", "q":
-			return m, tea.Quit
+			if msg.String() == "ctrl+c" || !m.typing {
+				return m, tea.Quit
+			} 
 
 		// The "up" key moves the cursor up
 		case "up", "shift+tab":
@@ -95,10 +98,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				} else {
 					m.selected[m.cursor] = struct{}{}
 					m.addingNew.Focus()
+					m.typing = true
 				}
 			}
 		case "delete", "backspace":
-			if m.cursor < len(m.choices) {
+			if m.cursor < len(m.choices) && !m.typing {
 				delete(m.selected, m.cursor) // otherwise [x] will be retained visually.
 				m.deleteItems(m.choices[m.cursor])
 				m.choices = deleteChoice(m.choices, m.cursor)
@@ -130,9 +134,10 @@ func (m *model) addNewItem() {
 	re := regexp.MustCompile(`\d+`)
 	set := re.FindAllString(newItem, -1)
 	if len(set) == 2 {
-		m.weights[pos] = append(m.weights[pos], "("+set[0] +"kg x "+ set[1]+")")
-		m.addItems(set, pos)	
+		m.weights[pos] = append(m.weights[pos], "("+set[0]+"kg x "+set[1]+")")
+		m.addItems(set, pos)
 	}
+	m.typing = false
 }
 
 // handles typing once focused.
@@ -184,7 +189,7 @@ func (m model) View() string {
 		}
 	}
 	// The footer
-	s += "\nPress Delete to delete an item. \nPress q to quit.\n"
+	s += "\nPress Delete to delete an item. \nPress Q or Ctrl+C to quit.\n"
 	return s
 }
 
