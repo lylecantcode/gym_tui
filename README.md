@@ -45,6 +45,8 @@ I would like to add a start menu, where you can choose between:
 2) View past workouts (a list of days you can view, with an array of exercises done as a summary)
 3) Add remove/exercises
 4) View personal bests
+(Assess whether it is worth implementing go routines for the db calls/any disadvantages?
+Would need to implement channels/mutex if delete function remains.)
 
 
 ## Usage

@@ -25,8 +25,8 @@ type model struct {
 }
 
 func initialModel() model {
-	items := model{selected: make(map[int]struct{})}
-	values := getValuesFromDB()
+	exercises := model{selected: make(map[int]struct{})}
+	values := exercises.getValuesFromDB()
 	insertModel := textinput.New()
 	insertModel.Placeholder = "After selecting, type Weight (kg) x Reps here"
 	insertModel.Prompt = ""    // we do not want an additional prompt for the "add new item"
@@ -34,19 +34,19 @@ func initialModel() model {
 	insertModel.Width = 20     // this limits the field of view when typing to X characters long
 
 	if len(values) == 0 {
-		items.choices = []string{"Bench Press", "Squats", "Pullups", "Dips", "Tricep Dips", "Bicep Curls", "Overhead Press", "Deadlifts", "Rows"}
+		exercises.choices = []string{"Bench Press", "Squats", "Pullups", "Dips", "Tricep Dips", "Bicep Curls", "Overhead Press", "Deadlifts", "Rows"}
 	} else {
-		items.choices = values
+		exercises.choices = values
 	}
-	items.addingNew = insertModel
+	exercises.addingNew = insertModel
 
 	// TODO: need to write a way to handle empty weights/reps to provide the original empty list
 	var setSlice []string
-	for i := 0; i < len(items.choices); i++ {
-		items.addToDB(setSlice, items.choices[i])
+	for i := 0; i < len(exercises.choices); i++ {
+		exercises.addToDB(setSlice, exercises.choices[i])
 	}
 
-	return items
+	return exercises
 }
 
 func (m model) Init() tea.Cmd {
@@ -106,7 +106,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "delete", "backspace":
 			// stops the backspace key from deleting an exercise if fixing a typo!
 			if m.cursor < len(m.choices) && !m.typing {
-				m.deleteExerciseFromDB(m.choices[m.cursor])
+				deleteExerciseFromDB(m.choices[m.cursor])
 				m.choices = deleteChoice(m.choices, m.cursor)
 			}
 		}
@@ -157,27 +157,42 @@ Press Q or Ctrl+C to quit.`
 
 func (m *model) addNewSet() {
 	// obtains the value from the "add new" line
-	newItem := m.addingNew.Value()
-	pos := m.choices[m.cursor]
-	// checks for existing map and if none, initiates map
-	if m.weights[pos] == nil {
-		m.weights = make(map[string][]string)
+	ex := m.choices[m.cursor]
+	// create channel, c
+	// rec := make(chan []string)
+	c := make(chan []string)
+	go m.regExFiltering(c)
+	go m.setMapping(ex, c)
+	set := <-c
+
+	if len(set) == 2 {
+		c <- set
+		m.addToDB(set, ex)
 	}
+	// checks for existing map and if none, initiates map
 	// unfocus/deselect the "add new" line
 	m.addingNew.Blur()
 	// reset the "add new" line back to default values
 	m.addingNew.Reset()
+
+	m.typing = false
+}
+
+func (m *model) regExFiltering(c chan []string) {
+	// get value from the user inputted field.
+	newSet := m.addingNew.Value()
 	// check for groupings of numbers and ignores any other values.
 	re := regexp.MustCompile(`\d+`)
-	set := re.FindAllString(newItem, -1)
-	// if 2 groups of numbers, i.e. weights and sets
-	if len(set) == 2 {
-		// add new set to exercise in fixed format
-		m.weights[pos] = append(m.weights[pos], "("+set[0]+"kg x "+set[1]+")")
-		// add new set to DB
-		m.addToDB(set, pos)
+	set := re.FindAllString(newSet, -1)
+	c <- set
+}
+
+func (m *model) setMapping(ex string, c chan []string) {
+	if m.weights[ex] == nil { // may need to keep if allowing for adding new exercises
+		m.weights = make(map[string][]string)
 	}
-	m.typing = false
+	set := <-c
+	m.weights[ex] = append(m.weights[ex], "("+set[0]+"kg x "+set[1]+")")
 }
 
 // delete an exercise from the list by creating a new slice of all other items.
@@ -185,13 +200,12 @@ func deleteChoice(s []string, index int) []string {
 	return append(s[:index], s[index+1:]...)
 }
 
-
 // create a basic database table if it doesn't exist.
 func dbStartUp() *sql.DB {
 	database, _ :=
 		sql.Open("sqlite3", "./gym_routine.db")
 	statement, _ :=
-		database.Prepare("CREATE TABLE IF NOT EXISTS gym_routine (id INTEGER PRIMARY KEY, exercise VARCHAR NOT NULL UNIQUE, weight INTEGER, reps INTEGER, date TEXT NOT NULL)")
+		database.Prepare("CREATE TABLE IF NOT EXISTS gym_routine (id INTEGER PRIMARY KEY, exercise VARCHAR NOT NULL, weight INTEGER, reps INTEGER, date TEXT)")
 	statement.Exec()
 
 	return database
@@ -207,26 +221,32 @@ func (m model) addToDB(set []string, exercise string) {
 		statement.Exec(exercise, TODAY, weight, reps)
 	} else {
 		statement, _ :=
-			db.Prepare("INSERT INTO gym_routine (exercise, date) VALUES (?, ?)")
-		statement.Exec(exercise, TODAY)
+			db.Prepare("INSERT INTO gym_routine (exercise, weight, reps) VALUES (?, ?, ?)")
+		statement.Exec(exercise, 0, 0)
 	}
 }
 
-func (m model) deleteExerciseFromDB(exercise string) {
+func deleteExerciseFromDB(exercise string) {
 	statement, _ :=
 		db.Prepare("DELETE FROM gym_routine WHERE exercise = ?")
 	statement.Exec(exercise)
 }
 
-func getValuesFromDB() []string {
+func (m model) getValuesFromDB() []string {
 	var exercise string
+	var weight, rep string
 	exerciseArray := []string{}
 
 	rows, _ :=
-		db.Query("SELECT exercise FROM gym_routine")
+		db.Query("SELECT exercise, weight, reps FROM gym_routine WHERE id IN (SELECT DISTINCT exercise FROM gym_routine ORDER BY id DESC)")
 	for rows.Next() {
-		rows.Scan(&exercise)
+		rows.Scan(&exercise, &weight, &rep)
 		exerciseArray = append(exerciseArray, exercise)
+		if m.weights[exercise] == nil {
+			m.weights = make(map[string][]string)
+		}
+		m.weights[exercise] = append(m.weights[exercise], "("+weight+"kg x "+rep+")")
+
 	}
 	return exerciseArray
 }
