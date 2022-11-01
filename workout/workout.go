@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var db = dbStartUp()
+var db *sql.DB
 var TODAY string = time.Now().Format("02-01-2006")
 
 type model struct {
@@ -81,7 +81,7 @@ func (m model) View() string {
 	// The footer
 	s += `Navigate using the arrow keys and use enter to select.
 Press Delete to delete an exercise. 
-Press Q or Ctrl+C to quit.`
+Press Q or Ctrl+C to go back to main menu..`
 	return s
 }
 
@@ -104,13 +104,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// The "up" key moves the cursor up
 		case "up", "shift+tab":
-			if m.cursor > 0 {
+			if m.cursor > 0 && !m.typing{
 				m.cursor--
 			}
 
 		// The "down" key moves the cursor down
 		case "down", "tab":
-			if m.cursor < len(m.choices)-1 {
+			if m.cursor < len(m.choices)-1 && !m.typing {
 				m.cursor++
 			}
 
@@ -200,18 +200,9 @@ func deleteChoice(s []string, index int) []string {
 	return append(s[:index], s[index+1:]...)
 }
 
-// create a basic database table if it doesn't exist.
-func dbStartUp() *sql.DB {
-	database, _ :=
-		sql.Open("sqlite3", "./gym_routine.db")
-	statement, _ :=
-		database.Prepare("CREATE TABLE IF NOT EXISTS gym_routine (id INTEGER PRIMARY KEY, exercise VARCHAR NOT NULL, weight INTEGER, reps INTEGER, date TEXT)")
-	statement.Exec()
 
-	return database
-}
 
-func (m model) addToDB(set []string, exercise string) {
+func (m *model) addToDB(set []string, exercise string) {
 	if len(set) == 2 {
 		// based on the requested format:
 		weight, _ := strconv.Atoi(set[0])
@@ -232,7 +223,7 @@ func deleteExerciseFromDB(exercise string) {
 	statement.Exec(exercise)
 }
 
-func (m model) getValuesFromDB() []string {
+func (m *model) getValuesFromDB() []string {
 	var exercise string
 	var weight, rep string
 	exerciseArray := []string{}
@@ -251,7 +242,8 @@ func (m model) getValuesFromDB() []string {
 	return exerciseArray
 }
 
-func StartWorkout() {
+func StartWorkout(database *sql.DB) {
+	db = database
 	p := tea.NewProgram(initialModel())
 	if err := p.Start(); err != nil {
 		fmt.Printf("Gym TUI encountered the following error: %v", err)
