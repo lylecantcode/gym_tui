@@ -103,14 +103,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		// The "up" key moves the cursor up
-		case "up", "shift+tab":
+		case "up", "shift+tab" && !m.typing:
 			if m.cursor > 0 {
 				m.cursor--
 			}
 
 		// The "down" key moves the cursor down
 		case "down", "tab":
-			if m.cursor < len(m.choices)-1 {
+			if m.cursor < len(m.choices)-1 && !m.typing {
 				m.cursor++
 			}
 

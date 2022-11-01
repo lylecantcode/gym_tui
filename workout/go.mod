@@ -6,6 +6,7 @@ require (
 	github.com/charmbracelet/bubbles v0.14.0
 	github.com/charmbracelet/bubbletea v0.22.1
 	github.com/mattn/go-sqlite3 v1.14.16
+	github.com/lylecantcode/gym_tui/workout
 )
 
 require (
