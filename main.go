@@ -1,13 +1,31 @@
 package main
 
 import (
-	tea "github.com/charmbracelet/bubbletea"
 	"fmt"
-	"os"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/lylecantcode/gym_tui/history"
 	"github.com/lylecantcode/gym_tui/workout"
+
+	"database/sql"
+	_ "github.com/mattn/go-sqlite3"
+	"os"
 )
 
+// create a basic database table if it doesn't exist.
+var db *sql.DB
+
+func dbStartUp() *sql.DB {
+	database, _ :=
+		sql.Open("sqlite3", "./gym_routine.db")
+	statement, _ :=
+		database.Prepare("CREATE TABLE IF NOT EXISTS gym_routine (id INTEGER PRIMARY KEY, exercise VARCHAR NOT NULL, weight INTEGER, reps INTEGER, date TEXT)")
+	statement.Exec()
+
+	return database
+}
+
 func main() {
+	db = dbStartUp()
 	p := tea.NewProgram(initialModel())
 	if err := p.Start(); err != nil {
 		fmt.Printf("Gym TUI encountered the following error: %v", err)
@@ -16,15 +34,14 @@ func main() {
 }
 
 type model struct {
-	options   []string
-	cursor    int                 // which list item our cursor is pointing at
-	hidden bool
-
+	options []string
+	cursor  int // which list item our cursor is pointing at
+	hidden  bool
 }
 
 func initialModel() model {
 	menu := model{}
-	menu.options = []string{"Begin workout!","Exercise History", "Personal Bests :)"}
+	menu.options = []string{"Begin workout!", "Exercise History", "Personal Bests"}
 	return menu
 }
 
@@ -45,19 +62,20 @@ func (m model) View() string {
 		}
 
 		// Render the rows
-		s += fmt.Sprintf("%s %s \n", cursor, m.options[i])//, checked, m.choices[i], m.weights[m.choices[i]])
+		s += fmt.Sprintf("%s %s \n", cursor, m.options[i]) //, checked, m.choices[i], m.weights[m.choices[i]])
 	}
 
 	// The footer
 	s += "\nNavigate using the arrow keys and use enter to select.\nPress Q or Ctrl+C to quit."
-	if !m.hidden {
-		return s
-	} else {
-		return ""
+	if m.hidden {
+		s = ""
 	}
+	return s
+
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	p := tea.NewProgram(initialModel())
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
@@ -70,7 +88,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// These keys should exit the program.
 		case "ctrl+c", "q":
-				return m, tea.Quit
+			p.Kill()
+			return m, tea.Quit
 
 		// The "up" key moves the cursor up
 		case "up", "shift+tab":
@@ -86,10 +105,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// The "enter" key allows for a set to be inputted.
 		case "enter":
-			if m.cursor < len(m.options) {
-				m.hidden = true
-				workout.StartWorkout() 
+			switch m.cursor {
+			case 0:
+				workout.StartWorkout(db)
+				p.StartReturningModel()
+			case 1:
+				history.GetHistory(db)
+				p.StartReturningModel()
+			case 2:
+				fmt.Println("Still a work in progress :)\n\n")
+				p.StartReturningModel()
 			}
+
 		}
 	}
 	return m, cmd
