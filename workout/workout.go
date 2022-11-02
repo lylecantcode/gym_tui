@@ -14,6 +14,7 @@ import (
 
 var db *sql.DB
 var TODAY string = time.Now().Format("02-01-2006")
+var Quitting bool
 
 type model struct {
 	choices   []string
@@ -80,7 +81,6 @@ func (m model) View() string {
 
 	// The footer
 	s += `Navigate using the arrow keys and use enter to select.
-Press Delete to delete an exercise. 
 Press Q or Ctrl+C to go back to main menu..`
 	return s
 }
@@ -97,14 +97,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 
 		// These keys should exit the program.
-		case "ctrl+c", "q":
-			if msg.String() == "ctrl+c" || !m.typing {
+		case "q":
+			if !m.typing {
 				return m, tea.Quit
 			}
 
+		case "ctrl+c":
+			Quitting = true
+			return m, tea.Quit
+
 		// The "up" key moves the cursor up
 		case "up", "shift+tab":
-			if m.cursor > 0 && !m.typing{
+			if m.cursor > 0 && !m.typing {
 				m.cursor--
 			}
 
@@ -134,13 +138,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.typing = true
 				}
 			}
-		// allows the deletion of an exercise, feature will likely be removed or changed.
-		case "delete", "backspace":
-			// stops the backspace key from deleting an exercise if fixing a typo!
-			if m.cursor < len(m.choices) && !m.typing {
-				deleteExerciseFromDB(m.choices[m.cursor])
-				m.choices = deleteChoice(m.choices, m.cursor)
-			}
+			// allows the deletion of an exercise, feature will likely be removed or changed.
+			// case "delete", "backspace":
+			// 	// stops the backspace key from deleting an exercise if fixing a typo!
+			// 	if m.cursor < len(m.choices) && !m.typing {
+			// 		deleteExerciseFromDB(m.choices[m.cursor])
+			// 		m.choices = deleteChoice(m.choices, m.cursor)
+			// 	}
 		}
 	}
 	// used to drive the addNewSet functionality.
@@ -188,7 +192,7 @@ func (m *model) regExFiltering(c chan []string) {
 }
 
 func (m *model) setMapping(ex string, c chan []string) {
-	if m.weights/*[ex]*/ == nil { // may need to keep if allowing for adding new exercises
+	if m.weights /*[ex]*/ == nil { // may need to keep if allowing for adding new exercises
 		m.weights = make(map[string][]string)
 	}
 	set := <-c
@@ -199,8 +203,6 @@ func (m *model) setMapping(ex string, c chan []string) {
 func deleteChoice(s []string, index int) []string {
 	return append(s[:index], s[index+1:]...)
 }
-
-
 
 func (m *model) addToDB(set []string, exercise string) {
 	if len(set) == 2 {
@@ -217,11 +219,11 @@ func (m *model) addToDB(set []string, exercise string) {
 	}
 }
 
-func deleteExerciseFromDB(exercise string) {
-	statement, _ :=
-		db.Prepare("DELETE FROM gym_routine WHERE exercise = ?")
-	statement.Exec(exercise)
-}
+// func deleteExerciseFromDB(exercise string) {
+// 	statement, _ :=
+// 		db.Prepare("DELETE FROM gym_routine WHERE exercise = ?")
+// 	statement.Exec(exercise)
+// }
 
 func (m *model) getValuesFromDB() []string {
 	var exercise string
@@ -247,6 +249,9 @@ func StartWorkout(database *sql.DB) {
 	p := tea.NewProgram(initialModel())
 	if err := p.Start(); err != nil {
 		fmt.Printf("Gym TUI encountered the following error: %v", err)
+		os.Exit(1)
+	}
+	if Quitting {
 		os.Exit(1)
 	}
 }

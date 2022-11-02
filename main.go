@@ -13,6 +13,7 @@ import (
 
 // create a basic database table if it doesn't exist.
 var db *sql.DB
+var Quitting bool
 
 func dbStartUp() *sql.DB {
 	database, _ :=
@@ -31,12 +32,16 @@ func main() {
 		fmt.Printf("Gym TUI encountered the following error: %v", err)
 		os.Exit(1)
 	}
+	if Quitting {
+		p.Kill()
+	}
 }
 
 type model struct {
-	options []string
-	cursor  int // which list item our cursor is pointing at
-	hidden  bool
+	options  []string
+	cursor   int // which list item our cursor is pointing at
+	hidden   bool
+	quitting bool
 }
 
 func initialModel() model {
@@ -88,7 +93,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// These keys should exit the program.
 		case "ctrl+c", "q":
-			p.Kill()
+			Quitting = true
 			return m, tea.Quit
 
 		// The "up" key moves the cursor up
@@ -108,14 +113,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch m.cursor {
 			case 0:
 				workout.StartWorkout(db)
-				p.StartReturningModel()
 			case 1:
 				history.GetHistory(db)
-				p.StartReturningModel()
 			case 2:
-				fmt.Println("Still a work in progress :)\n\n")
-				p.StartReturningModel()
+				history.GetBests(db)
 			}
+			p.StartReturningModel()
 
 		}
 	}
