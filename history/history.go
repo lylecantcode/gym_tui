@@ -50,13 +50,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			m.quitting = true
 			return m, tea.Quit
+		
 		case "enter":
-			var results string
-			results, err := wiki.Summary(m.searchTerm[m.table.SelectedRow()[1]], 1, -1, false, true)
-			if err != nil {
-				results = fmt.Sprintf("%s",err)
-			}
-
+			c := make(chan string)
+			go m.searchWiki(c)
+			results := <- c 
 			return m, tea.Batch(
 				tea.Printf("\n%s\n", results),
 			)
@@ -75,6 +73,14 @@ Feel free to scroll (there %d entries total)
 Ctrl+C or Q to go back to main menu
 `, m.rows)
 	return baseStyle.Render(m.table.View()) + footer
+}
+
+func (m *model) searchWiki(c chan string) {
+	results, err := wiki.Summary(m.searchTerm[m.table.SelectedRow()[1]], 1, -1, false, true)
+	if err != nil {
+		results = fmt.Sprintf("%s",err)
+	}
+	c <- results
 }
 
 func createTable(exercises []workouts) {
@@ -165,3 +171,4 @@ func GetHistory(db *sql.DB) {
 	}
 	createTable(exercises)
 }
+
