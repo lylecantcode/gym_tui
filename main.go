@@ -18,7 +18,7 @@ func dbStartUp() *sql.DB {
 	database, _ :=
 		sql.Open("sqlite3", "./gym_routine.db")
 	statement, _ :=
-		database.Prepare("CREATE TABLE IF NOT EXISTS gym_routine (id INTEGER PRIMARY KEY, exercise VARCHAR NOT NULL, weight INTEGER, reps INTEGER, date TEXT)")
+		database.Prepare("CREATE TABLE IF NOT EXISTS gym_routine (id INTEGER PRIMARY KEY, exercise VARCHAR NOT NULL, weight INTEGER DEFAULT 0, reps INTEGER DEFAULT 0, date TEXT DEFAULT CURRENT_DATE)")
 	statement.Exec()
 
 	return database
@@ -34,9 +34,9 @@ func main() {
 }
 
 type model struct {
-	options []string
-	cursor  int // which list item our cursor is pointing at
-	hidden  bool
+	options  []string
+	cursor   int // which list item our cursor is pointing at
+	hidden   bool
 }
 
 func initialModel() model {
@@ -62,14 +62,11 @@ func (m model) View() string {
 		}
 
 		// Render the rows
-		s += fmt.Sprintf("%s %s \n", cursor, m.options[i]) //, checked, m.choices[i], m.weights[m.choices[i]])
+		s += fmt.Sprintf("%s %s \n", cursor, m.options[i])
 	}
 
 	// The footer
 	s += "\nNavigate using the arrow keys and use enter to select.\nPress Q or Ctrl+C to quit."
-	if m.hidden {
-		s = ""
-	}
 	return s
 
 }
@@ -88,7 +85,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// These keys should exit the program.
 		case "ctrl+c", "q":
-			p.Kill()
 			return m, tea.Quit
 
 		// The "up" key moves the cursor up
@@ -105,17 +101,20 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// The "enter" key allows for a set to be inputted.
 		case "enter":
+			var exit bool
 			switch m.cursor {
 			case 0:
-				workout.StartWorkout(db)
-				p.StartReturningModel()
+				exit = workout.StartWorkout(db)
 			case 1:
-				history.GetHistory(db)
-				p.StartReturningModel()
+				exit = history.GetHistory(db)
 			case 2:
-				fmt.Println("Still a work in progress :)\n\n")
-				p.StartReturningModel()
+				exit = history.GetBests(db)
 			}
+			if exit {
+				// os.Exit(1)
+				return m, tea.Quit
+			}
+			p.StartReturningModel()
 
 		}
 	}

@@ -9,11 +9,10 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"time"
 )
 
 var db *sql.DB
-var TODAY string = time.Now().Format("02-01-2006")
+var Quitting bool
 
 type model struct {
 	choices   []string
@@ -26,25 +25,17 @@ type model struct {
 
 func initialModel() model {
 	exercises := model{selected: make(map[int]struct{})}
-	values := exercises.getValuesFromDB()
+	// values := exercises.getValuesFromDB()
 	insertModel := textinput.New()
 	insertModel.Placeholder = "After selecting, type Weight (kg) x Reps here"
 	insertModel.Prompt = ""    // we do not want an additional prompt for the "add new item"
 	insertModel.CharLimit = 20 // character limit will limit potentially problematic entries
 	insertModel.Width = 20     // this limits the field of view when typing to X characters long
 
-	if len(values) == 0 {
-		exercises.choices = []string{"Bench Press", "Squats", "Pullups", "Dips", "Tricep Dips", "Bicep Curls", "Overhead Press", "Deadlifts", "Rows"}
-	} else {
-		exercises.choices = values
-	}
-	exercises.addingNew = insertModel
+	exercises.choices = []string{"Bench Press", "Squats", "Pullups", "Dips", "Tricep Dips", "Bicep Curls", "Overhead Press", "Deadlifts", "Rows"}
+	exercises.addToDB([]string{}, exercises.choices...)
 
-	// TODO: need to write a way to handle empty weights/reps to provide the original empty list
-	var setSlice []string
-	for i := 0; i < len(exercises.choices); i++ {
-		exercises.addToDB(setSlice, exercises.choices[i])
-	}
+	exercises.addingNew = insertModel
 
 	return exercises
 }
@@ -55,7 +46,7 @@ func (m model) Init() tea.Cmd {
 
 func (m model) View() string {
 	// The header
-	s := "What exercise did you do?\n\n"
+	s := "\n\nWhat exercise did you do?\n\n"
 
 	// Iterate over our choices.
 	for i := 0; i < len(m.choices); i++ {
@@ -80,8 +71,7 @@ func (m model) View() string {
 
 	// The footer
 	s += `Navigate using the arrow keys and use enter to select.
-Press Delete to delete an exercise. 
-Press Q or Ctrl+C to go back to main menu..`
+Press Q to go back to main menu or Ctrl+C to quit..`
 	return s
 }
 
@@ -97,14 +87,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 
 		// These keys should exit the program.
-		case "ctrl+c", "q":
-			if msg.String() == "ctrl+c" || !m.typing {
+		case "q":
+			if !m.typing {
 				return m, tea.Quit
 			}
 
+		case "ctrl+c":
+			Quitting = true
+			return m, tea.Quit
+
 		// The "up" key moves the cursor up
 		case "up", "shift+tab":
-			if m.cursor > 0 && !m.typing{
+			if m.cursor > 0 && !m.typing {
 				m.cursor--
 			}
 
@@ -133,13 +127,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.addingNew.Focus()
 					m.typing = true
 				}
-			}
-		// allows the deletion of an exercise, feature will likely be removed or changed.
-		case "delete", "backspace":
-			// stops the backspace key from deleting an exercise if fixing a typo!
-			if m.cursor < len(m.choices) && !m.typing {
-				deleteExerciseFromDB(m.choices[m.cursor])
-				m.choices = deleteChoice(m.choices, m.cursor)
 			}
 		}
 	}
@@ -188,7 +175,7 @@ func (m *model) regExFiltering(c chan []string) {
 }
 
 func (m *model) setMapping(ex string, c chan []string) {
-	if m.weights/*[ex]*/ == nil { // may need to keep if allowing for adding new exercises
+	if m.weights /*[ex]*/ == nil { // may need to keep if allowing for adding new exercises
 		m.weights = make(map[string][]string)
 	}
 	set := <-c
@@ -197,56 +184,38 @@ func (m *model) setMapping(ex string, c chan []string) {
 
 // delete an exercise from the list by creating a new slice of all other items.
 func deleteChoice(s []string, index int) []string {
+	// elipses separates the array into separate values to append them to the new slice
 	return append(s[:index], s[index+1:]...)
 }
 
-
-
-func (m *model) addToDB(set []string, exercise string) {
+func (m *model) addToDB(set []string, exercise ...string) {
+	var counter int
 	if len(set) == 2 {
 		// based on the requested format:
 		weight, _ := strconv.Atoi(set[0])
 		reps, _ := strconv.Atoi(set[1])
 		statement, _ :=
-			db.Prepare("INSERT INTO gym_routine (exercise, date, weight, reps) VALUES (?, ?, ?, ?)")
-		statement.Exec(exercise, TODAY, weight, reps)
-	} else {
-		statement, _ :=
 			db.Prepare("INSERT INTO gym_routine (exercise, weight, reps) VALUES (?, ?, ?)")
-		statement.Exec(exercise, 0, 0)
-	}
-}
-
-func deleteExerciseFromDB(exercise string) {
-	statement, _ :=
-		db.Prepare("DELETE FROM gym_routine WHERE exercise = ?")
-	statement.Exec(exercise)
-}
-
-func (m *model) getValuesFromDB() []string {
-	var exercise string
-	var weight, rep string
-	exerciseArray := []string{}
-
-	rows, _ :=
-		db.Query("SELECT exercise, weight, reps FROM gym_routine WHERE id IN (SELECT DISTINCT exercise FROM gym_routine ORDER BY id DESC)")
-	for rows.Next() {
-		rows.Scan(&exercise, &weight, &rep)
-		exerciseArray = append(exerciseArray, exercise)
-		if m.weights[exercise] == nil {
-			m.weights = make(map[string][]string)
+		statement.Exec(exercise[0], weight, reps)
+	} else if db.QueryRow("SELECT count(*) FROM gym_routine").Scan(&counter); counter == 0 {
+		for _, ex := range exercise {
+			statement, _ :=
+				db.Prepare("INSERT INTO gym_routine (exercise) VALUES (?)")
+			statement.Exec(ex)
 		}
-		m.weights[exercise] = append(m.weights[exercise], "("+weight+"kg x "+rep+")")
-
 	}
-	return exerciseArray
 }
 
-func StartWorkout(database *sql.DB) {
+func StartWorkout(database *sql.DB) bool {
 	db = database
 	p := tea.NewProgram(initialModel())
 	if err := p.Start(); err != nil {
 		fmt.Printf("Gym TUI encountered the following error: %v", err)
 		os.Exit(1)
 	}
+	p.Kill()	// doesn't seem to help :(
+	if Quitting {
+		return true
+	}
+	return false
 }
