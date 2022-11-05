@@ -25,25 +25,17 @@ type model struct {
 
 func initialModel() model {
 	exercises := model{selected: make(map[int]struct{})}
-	values := exercises.getValuesFromDB()
+	// values := exercises.getValuesFromDB()
 	insertModel := textinput.New()
 	insertModel.Placeholder = "After selecting, type Weight (kg) x Reps here"
 	insertModel.Prompt = ""    // we do not want an additional prompt for the "add new item"
 	insertModel.CharLimit = 20 // character limit will limit potentially problematic entries
 	insertModel.Width = 20     // this limits the field of view when typing to X characters long
 
-	if len(values) == 0 {
-		exercises.choices = []string{"Bench Press", "Squats", "Pullups", "Dips", "Tricep Dips", "Bicep Curls", "Overhead Press", "Deadlifts", "Rows"}
-	} else {
-		exercises.choices = values
-	}
-	exercises.addingNew = insertModel
+	exercises.choices = []string{"Bench Press", "Squats", "Pullups", "Dips", "Tricep Dips", "Bicep Curls", "Overhead Press", "Deadlifts", "Rows"}
+	exercises.addToDB([]string{}, exercises.choices...)
 
-	// TODO: need to write a way to handle empty weights/reps to provide the original empty list
-	var setSlice []string
-	// for i := 0; i < len(exercises.choices); i++ {
-	exercises.addToDB(setSlice, exercises.choices...)
-	// }
+	exercises.addingNew = insertModel
 
 	return exercises
 }
@@ -54,7 +46,7 @@ func (m model) Init() tea.Cmd {
 
 func (m model) View() string {
 	// The header
-	s := "What exercise did you do?\n\n"
+	s := "\n\nWhat exercise did you do?\n\n"
 
 	// Iterate over our choices.
 	for i := 0; i < len(m.choices); i++ {
@@ -212,31 +204,6 @@ func (m *model) addToDB(set []string, exercise ...string) {
 			statement.Exec(ex)
 		}
 	}
-}
-
-// func deleteExerciseFromDB(exercise string) {
-// 	statement, _ :=
-// 		db.Prepare("DELETE FROM gym_routine WHERE exercise = ?")
-// 	statement.Exec(exercise)
-// }
-
-func (m *model) getValuesFromDB() []string {
-	var exercise string
-	var weight, rep string
-	exerciseArray := []string{}
-
-	rows, _ :=
-		db.Query("SELECT exercise, weight, reps FROM gym_routine WHERE id IN (SELECT DISTINCT exercise FROM gym_routine ORDER BY id DESC)")
-	for rows.Next() {
-		rows.Scan(&exercise, &weight, &rep)
-		exerciseArray = append(exerciseArray, exercise)
-		if m.weights[exercise] == nil {
-			m.weights = make(map[string][]string)
-		}
-		m.weights[exercise] = append(m.weights[exercise], "("+weight+"kg x "+rep+")")
-
-	}
-	return exerciseArray
 }
 
 func StartWorkout(database *sql.DB) bool {
