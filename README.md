@@ -11,6 +11,7 @@ Saves the workout in an SQLite3 database.
 - [Usage](#usage)
 - [Contributing](#contributing)
 - [License](#license)
+- [Known Bugs](#known-bugs)
 
 ## Example of use
 I just did a set of squats and I want to add my set of 50 kg and 10 reps.
@@ -60,3 +61,9 @@ $ go run main.go
 ## Contributing
 
 Feel free to dive in! [Open an issue](https://github.com/lylecantcode/gym_tui/issues/new) or submit PRs.
+
+## Known Bugs
+1) "Sticky Quitting" where exiting application is sometimes unsuccessful on first cancel command.
+    * This happens when navigating through the menus and exiting via Q back to main menus, then trying to force quit with Ctrl + C.
+2) Need to look into why some key presses are ignored at start of interaction of the various TUIs.
+    * When selecting a new TUI or quitting to main menu, one of the first 2 key presses is often ignored.
