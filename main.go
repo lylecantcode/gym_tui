@@ -18,7 +18,7 @@ func dbStartUp() *sql.DB {
 	database, _ :=
 		sql.Open("sqlite3", "./gym_routine.db")
 	statement, _ :=
-		database.Prepare("CREATE TABLE IF NOT EXISTS gym_routine (id INTEGER PRIMARY KEY, exercise VARCHAR NOT NULL, weight INTEGER, reps INTEGER, date TEXT)")
+		database.Prepare("CREATE TABLE IF NOT EXISTS gym_routine (id INTEGER PRIMARY KEY, exercise VARCHAR NOT NULL, weight INTEGER DEFAULT 0, reps INTEGER DEFAULT 0, date TEXT DEFAULT CURRENT_DATE)")
 	statement.Exec()
 
 	return database

@@ -71,8 +71,9 @@ func (m model) View() string {
 		return "No previous results found."
 	}
 	footer := fmt.Sprintf(`
-Feel free to scroll (there %d entries total)
-Ctrl+C or Q to go back to main menu
+Feel free to scroll (there %d entries total).
+Select an exercise to learn more about it.
+Ctrl+C to quit or Q to go back to main menu.
 `, m.rows)
 	return baseStyle.Render(m.table.View()) + footer
 }
@@ -102,7 +103,7 @@ func createTableTUI(exercises []workouts) {
 
 	columns := []table.Column{
 		{Title: "id", Width: 4},
-		{Title: "Exercise", Width: 12},
+		{Title: "Exercise", Width: 15},
 		{Title: "Weight", Width: 6},
 		{Title: "Rep", Width: 5},
 		{Title: "Date", Width: 12},

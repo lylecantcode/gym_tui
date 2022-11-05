@@ -9,11 +9,9 @@ import (
 	"os"
 	"regexp"
 	"strconv"
-	"time"
 )
 
 var db *sql.DB
-var TODAY string = time.Now().Format("02-01-2006")
 var Quitting bool
 
 type model struct {
@@ -43,9 +41,9 @@ func initialModel() model {
 
 	// TODO: need to write a way to handle empty weights/reps to provide the original empty list
 	var setSlice []string
-	for i := 0; i < len(exercises.choices); i++ {
-		exercises.addToDB(setSlice, exercises.choices[i])
-	}
+	// for i := 0; i < len(exercises.choices); i++ {
+	exercises.addToDB(setSlice, exercises.choices...)
+	// }
 
 	return exercises
 }
@@ -198,18 +196,21 @@ func deleteChoice(s []string, index int) []string {
 	return append(s[:index], s[index+1:]...)
 }
 
-func (m *model) addToDB(set []string, exercise string) {
+func (m *model) addToDB(set []string, exercise ...string) {
+	var counter int
 	if len(set) == 2 {
 		// based on the requested format:
 		weight, _ := strconv.Atoi(set[0])
 		reps, _ := strconv.Atoi(set[1])
 		statement, _ :=
-			db.Prepare("INSERT INTO gym_routine (exercise, date, weight, reps) VALUES (?, ?, ?, ?)")
-		statement.Exec(exercise, TODAY, weight, reps)
-	} else {
-		statement, _ :=
 			db.Prepare("INSERT INTO gym_routine (exercise, weight, reps) VALUES (?, ?, ?)")
-		statement.Exec(exercise, 0, 0)
+		statement.Exec(exercise[0], weight, reps)
+	} else if db.QueryRow("SELECT count(*) FROM gym_routine").Scan(&counter); counter == 0 {
+		for _, ex := range exercise {
+			statement, _ :=
+				db.Prepare("INSERT INTO gym_routine (exercise) VALUES (?)")
+			statement.Exec(ex)
+		}
 	}
 }
 
@@ -245,8 +246,9 @@ func StartWorkout(database *sql.DB) bool {
 		fmt.Printf("Gym TUI encountered the following error: %v", err)
 		os.Exit(1)
 	}
+	p.Kill()	// doesn't seem to help :(
 	if Quitting {
 		return true
-	} 
+	}
 	return false
 }
