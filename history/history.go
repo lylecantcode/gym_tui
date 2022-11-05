@@ -17,6 +17,8 @@ var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
+var Quitting bool
+
 type model struct {
 	table      table.Model
 	rows       int
@@ -48,7 +50,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q":
 			return m, tea.Quit
 		case "ctrl+c":
-			m.quitting = true
+			Quitting = true
 			return m, tea.Quit
 		
 		case "enter":
@@ -83,7 +85,7 @@ func (m *model) searchWiki(c chan string) {
 	c <- results
 }
 
-func createTable(exercises []workouts) {
+func createTableTUI(exercises []workouts) {
 	rowCount := len(exercises)
 
 	rows := []table.Row{}
@@ -143,12 +145,9 @@ func createTable(exercises []workouts) {
 		fmt.Println("Error running program:", err)
 		os.Exit(1)
 	}
-	if m.quitting {
-		os.Exit(1)
-	}	
 }
 
-func GetBests(db *sql.DB) {
+func GetBests(db *sql.DB) bool {
 	var exercises []workouts
 	dbRows, _ :=
 		db.Query("SELECT exercise, MAX(weight), reps, date FROM gym_routine GROUP BY exercise ORDER BY weight,reps DESC LIMIT 50")
@@ -157,10 +156,15 @@ func GetBests(db *sql.DB) {
 		dbRows.Scan(&workout.exercise, &workout.weight, &workout.rep, &workout.date)
 		exercises = append(exercises, workout)
 	}
-	createTable(exercises)
+	createTableTUI(exercises)
+
+	if Quitting {
+		return true
+	} 
+	return false
 }
 
-func GetHistory(db *sql.DB) {
+func GetHistory(db *sql.DB) bool {
 	var exercises []workouts
 	dbRows, _ :=
 		db.Query("SELECT id, exercise, weight, reps, date FROM gym_routine WHERE weight != 0 OR reps != 0 ORDER BY id ASC LIMIT 50")
@@ -169,6 +173,12 @@ func GetHistory(db *sql.DB) {
 		dbRows.Scan(&workout.id, &workout.exercise, &workout.weight, &workout.rep, &workout.date)
 		exercises = append(exercises, workout)
 	}
-	createTable(exercises)
+	createTableTUI(exercises)
+
+	if Quitting {
+		return true
+	} 
+	return false
 }
+
 

@@ -81,7 +81,7 @@ func (m model) View() string {
 
 	// The footer
 	s += `Navigate using the arrow keys and use enter to select.
-Press Q or Ctrl+C to go back to main menu..`
+Press Q to go back to main menu or Ctrl+C to quit..`
 	return s
 }
 
@@ -138,13 +138,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m.typing = true
 				}
 			}
-			// allows the deletion of an exercise, feature will likely be removed or changed.
-			// case "delete", "backspace":
-			// 	// stops the backspace key from deleting an exercise if fixing a typo!
-			// 	if m.cursor < len(m.choices) && !m.typing {
-			// 		deleteExerciseFromDB(m.choices[m.cursor])
-			// 		m.choices = deleteChoice(m.choices, m.cursor)
-			// 	}
 		}
 	}
 	// used to drive the addNewSet functionality.
@@ -201,6 +194,7 @@ func (m *model) setMapping(ex string, c chan []string) {
 
 // delete an exercise from the list by creating a new slice of all other items.
 func deleteChoice(s []string, index int) []string {
+	// elipses separates the array into separate values to append them to the new slice
 	return append(s[:index], s[index+1:]...)
 }
 
@@ -244,7 +238,7 @@ func (m *model) getValuesFromDB() []string {
 	return exerciseArray
 }
 
-func StartWorkout(database *sql.DB) {
+func StartWorkout(database *sql.DB) bool {
 	db = database
 	p := tea.NewProgram(initialModel())
 	if err := p.Start(); err != nil {
@@ -252,6 +246,7 @@ func StartWorkout(database *sql.DB) {
 		os.Exit(1)
 	}
 	if Quitting {
-		os.Exit(1)
-	}
+		return true
+	} 
+	return false
 }
