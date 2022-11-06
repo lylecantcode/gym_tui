@@ -44,7 +44,7 @@ My personal usage is via the android app [Termux](https://play.google.com/store/
 
 ### Completed
 ~~I would like to add a start menu, where you can choose between:~~  
-~~1) Start your workout ~~  
+~~1) Start your workout ~~
 ~~2) View past workouts (a list of days you can view, with an array of exercises done as a summary)~~  
 ~~3) Add remove/exercises~~  
 ~~4) View personal bests~~  
