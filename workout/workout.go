@@ -7,13 +7,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
-	"os"
 	"regexp"
 	"strconv"
 )
-
-var db *sql.DB
-var Quitting bool
 
 type model struct {
 	choices   []string
@@ -22,10 +18,16 @@ type model struct {
 	selected  map[int]struct{}    // which weights are selected
 	addingNew textinput.Model     // used to add new values
 	typing    bool                // used to stop delete or quit triggering accidentally
+	mainMenu tea.Model
+	db *sql.DB
 }
 
-func initialModel() model {
-	exercises := model{selected: make(map[int]struct{})}
+func initialModel(database *sql.DB, mainMenu tea.Model) model {
+	exercises := model{
+		selected: make(map[int]struct{}),
+		mainMenu: mainMenu,
+		db: database,
+}
 	// values := exercises.getValuesFromDB()
 	insertModel := textinput.New()
 	insertModel.Placeholder = "After selecting, type Weight (kg) x Reps here"
@@ -90,11 +92,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// These keys should exit the program.
 		case "q":
 			if !m.typing {
-				return m, tea.Quit
+				return m.mainMenu, cmd
 			}
 
 		case "ctrl+c":
-			Quitting = true
 			return m, tea.Quit
 
 		// The "up" key moves the cursor up
@@ -197,17 +198,23 @@ func (m *model) addToDB(set []string, exercise ...string) {
 			log.Fatal("something went wrong with regex pattern, invalid value: " + err.Error())
 		}
 		statement, err :=
-			db.Prepare("INSERT INTO gym_routine (exercise, weight, reps) VALUES (?, ?, ?)")
-		statement.Exec(exercise[0], weight, reps)
+			m.db.Prepare("INSERT INTO gym_routine (exercise, weight, reps) VALUES (?, ?, ?)")
+		if err != nil {
+			log.Fatal("db insertion statement error: " + err.Error())
+		}
+		_, err = statement.Exec(exercise[0], weight, reps)
 		if err != nil {
 			log.Fatal("db insertion error: " + err.Error())
 		}
-	} else if db.QueryRow("SELECT count(*) FROM gym_routine").Scan(&counter); counter == 0 {
+	} else if m.db.QueryRow("SELECT count(*) FROM gym_routine").Scan(&counter); counter == 0 {
 		for _, ex := range exercise {
 
 			statement, err :=
-				db.Prepare("INSERT INTO gym_routine (exercise) VALUES (?)")
-			statement.Exec(ex)
+				m.db.Prepare("INSERT INTO gym_routine (exercise) VALUES (?)")
+			if err != nil {
+				log.Fatal("db insertion statement error: " + err.Error())
+			}
+			_, err = statement.Exec(ex)
 			if err != nil {
 				log.Fatal("db insertion error: " + err.Error())
 			}
@@ -217,16 +224,6 @@ func (m *model) addToDB(set []string, exercise ...string) {
 	return
 }
 
-func StartWorkout(database *sql.DB) bool {
-	db = database
-	p := tea.NewProgram(initialModel())
-	if err := p.Start(); err != nil {
-		fmt.Printf("Gym TUI encountered the following error: %v", err)
-		os.Exit(1)
-	}
-	p.Kill() // doesn't seem to help :(
-	if Quitting {
-		return true
-	}
-	return false
+func StartWorkout(database *sql.DB, mainMenu tea.Model) tea.Model {
+	return initialModel(database, mainMenu)
 }

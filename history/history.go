@@ -9,21 +9,20 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	wiki "github.com/trietmn/go-wiki"
 	"log"
-	"os"
 	"strconv"
+	"strings"
 )
 
 var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
-var Quitting bool
 
 type model struct {
 	table      table.Model
 	rows       int
 	searchTerm map[string]string
-	quitting   bool
+	mainMenu tea.Model
 }
 
 type workouts struct {
@@ -48,9 +47,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.table.Focus()
 			}
 		case "q":
-			return m, tea.Quit
+			return m.mainMenu, cmd
 		case "ctrl+c":
-			Quitting = true
 			return m, tea.Quit
 
 		case "enter":
@@ -79,15 +77,26 @@ Ctrl+C to quit or Q to go back to main menu.
 }
 
 // if running this as a channel, should it be launched near the started and just run in background?
+// this is still causing lag.
 func (m *model) searchWiki(c chan string) {
-	results, err := wiki.Summary(m.searchTerm[m.table.SelectedRow()[1]], 1, -1, false, true)
+	var results string
+	// results, err := wiki.Summary(m.searchTerm[m.table.SelectedRow()[1]], 1, -1, false, true)
+	page, err := wiki.GetPage(m.searchTerm[m.table.SelectedRow()[1]], -1, false, true)
 	if err != nil {
 		results = fmt.Sprintf("%s", err)
+	} else {
+		content, err := page.GetContent()
+		if err != nil {
+			results = fmt.Sprintf("%s", err)
+		} 
+		results, _, _ = strings.Cut(content, ".")
+		// this is still being cropped by the TUI :(
+		// think because of screen width.
 	}
 	c <- results
 }
 
-func createTableTUI(exercises []workouts) {
+func createTableTUI(exercises []workouts, mainMenu tea.Model) tea.Model {
 	rowCount := len(exercises)
 
 	rows := []table.Row{}
@@ -131,7 +140,7 @@ func createTableTUI(exercises []workouts) {
 
 	searchTerms := make(map[string]string)
 
-	m := model{t, rowCount, searchTerms, false}
+	m := model{t, rowCount, searchTerms, mainMenu}
 
 	m.searchTerm["Squats"] = "Squat (exercise)"
 	m.searchTerm["Deadlifts"] = "Deadlift"
@@ -143,13 +152,10 @@ func createTableTUI(exercises []workouts) {
 	m.searchTerm["Pullups"] = "Pull-up (exercise)"
 	m.searchTerm["Bicep Curls"] = "Biceps curl"
 
-	if err := tea.NewProgram(m).Start(); err != nil {
-		fmt.Println("Error running program:", err)
-		os.Exit(1)
-	}
+	return m
 }
 
-func GetBests(db *sql.DB) bool {
+func GetBests(db *sql.DB, mainMenu tea.Model) tea.Model {
 	var exercises []workouts
 	dbRows, err :=
 		db.Query("SELECT exercise, MAX(weight), reps, date FROM gym_routine GROUP BY exercise ORDER BY weight,reps DESC LIMIT 50")
@@ -161,15 +167,10 @@ func GetBests(db *sql.DB) bool {
 		dbRows.Scan(&workout.exercise, &workout.weight, &workout.rep, &workout.date)
 		exercises = append(exercises, workout)
 	}
-	createTableTUI(exercises)
-
-	if Quitting {
-		return true
-	}
-	return false
+	return createTableTUI(exercises, mainMenu)
 }
 
-func GetHistory(db *sql.DB) bool {
+func GetHistory(db *sql.DB, mainMenu tea.Model) tea.Model {
 	var exercises []workouts
 	dbRows, err :=
 		db.Query("SELECT id, exercise, weight, reps, date FROM gym_routine WHERE weight != 0 OR reps != 0 ORDER BY id ASC LIMIT 50")
@@ -181,10 +182,5 @@ func GetHistory(db *sql.DB) bool {
 		dbRows.Scan(&workout.id, &workout.exercise, &workout.weight, &workout.rep, &workout.date)
 		exercises = append(exercises, workout)
 	}
-	createTableTUI(exercises)
-
-	if Quitting {
-		return true
-	}
-	return false
+	return createTableTUI(exercises, mainMenu)
 }
