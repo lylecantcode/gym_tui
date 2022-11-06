@@ -78,6 +78,7 @@ Ctrl+C to quit or Q to go back to main menu.
 	return baseStyle.Render(m.table.View()) + footer
 }
 
+// if running this as a channel, should it be launched near the started and just run in background?
 func (m *model) searchWiki(c chan string) {
 	results, err := wiki.Summary(m.searchTerm[m.table.SelectedRow()[1]], 1, -1, false, true)
 	if err != nil {
