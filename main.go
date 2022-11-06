@@ -1,13 +1,13 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/lylecantcode/gym_tui/history"
 	"github.com/lylecantcode/gym_tui/workout"
-
-	"database/sql"
 	_ "github.com/mattn/go-sqlite3"
+	"log"
 	"os"
 )
 
@@ -15,12 +15,17 @@ import (
 var db *sql.DB
 
 func dbStartUp() *sql.DB {
-	database, _ :=
+	database, err :=
 		sql.Open("sqlite3", "./gym_routine.db")
-	statement, _ :=
+	if err != nil {
+		log.Fatal("error opening DB: " + err.Error())
+	}
+	statement, err :=
 		database.Prepare("CREATE TABLE IF NOT EXISTS gym_routine (id INTEGER PRIMARY KEY, exercise VARCHAR NOT NULL, weight INTEGER DEFAULT 0, reps INTEGER DEFAULT 0, date TEXT DEFAULT CURRENT_DATE)")
 	statement.Exec()
-
+	if err != nil {
+		log.Fatal("error creating table: " + err.Error())
+	}
 	return database
 }
 
@@ -34,9 +39,9 @@ func main() {
 }
 
 type model struct {
-	options  []string
-	cursor   int // which list item our cursor is pointing at
-	hidden   bool
+	options []string
+	cursor  int // which list item our cursor is pointing at
+	hidden  bool
 }
 
 func initialModel() model {
