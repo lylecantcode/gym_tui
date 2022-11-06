@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	_ "github.com/mattn/go-sqlite3"
+	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -192,16 +193,29 @@ func (m *model) addToDB(set []string, exercise ...string) {
 	var counter int
 	if len(set) == 2 {
 		// based on the requested format:
-		weight, _ := strconv.Atoi(set[0])
-		reps, _ := strconv.Atoi(set[1])
-		statement, _ :=
+		weight, err := strconv.Atoi(set[0])
+		if err != nil {
+			log.Fatal("something went wrong with regex pattern, invalid value: " + err.Error())
+		}
+		reps, err := strconv.Atoi(set[1])
+		if err != nil {
+			log.Fatal("something went wrong with regex pattern, invalid value: " + err.Error())
+		}
+		statement, err :=
 			db.Prepare("INSERT INTO gym_routine (exercise, weight, reps) VALUES (?, ?, ?)")
 		statement.Exec(exercise[0], weight, reps)
+		if err != nil {
+			log.Fatal("db insertion error: " + err.Error())
+		}
 	} else if db.QueryRow("SELECT count(*) FROM gym_routine").Scan(&counter); counter == 0 {
 		for _, ex := range exercise {
-			statement, _ :=
+
+			statement, err :=
 				db.Prepare("INSERT INTO gym_routine (exercise) VALUES (?)")
 			statement.Exec(ex)
+			if err != nil {
+				log.Fatal("db insertion error: " + err.Error())
+			}
 		}
 	}
 }
@@ -213,7 +227,7 @@ func StartWorkout(database *sql.DB) bool {
 		fmt.Printf("Gym TUI encountered the following error: %v", err)
 		os.Exit(1)
 	}
-	p.Kill()	// doesn't seem to help :(
+	p.Kill() // doesn't seem to help :(
 	if Quitting {
 		return true
 	}

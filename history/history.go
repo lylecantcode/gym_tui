@@ -1,16 +1,16 @@
 package history
 
 import (
-	"fmt"
-	"os"
-	"strconv"
-
 	"database/sql"
+	"fmt"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	_ "github.com/mattn/go-sqlite3"
 	wiki "github.com/trietmn/go-wiki"
+	"log"
+	"os"
+	"strconv"
 )
 
 var baseStyle = lipgloss.NewStyle().
@@ -23,7 +23,7 @@ type model struct {
 	table      table.Model
 	rows       int
 	searchTerm map[string]string
-	quitting bool
+	quitting   bool
 }
 
 type workouts struct {
@@ -52,11 +52,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c":
 			Quitting = true
 			return m, tea.Quit
-		
+
 		case "enter":
 			c := make(chan string)
 			go m.searchWiki(c)
-			results := <- c 
+			results := <-c
 			return m, tea.Batch(
 				tea.Printf("\n%s\n", results),
 			)
@@ -81,7 +81,7 @@ Ctrl+C to quit or Q to go back to main menu.
 func (m *model) searchWiki(c chan string) {
 	results, err := wiki.Summary(m.searchTerm[m.table.SelectedRow()[1]], 1, -1, false, true)
 	if err != nil {
-		results = fmt.Sprintf("%s",err)
+		results = fmt.Sprintf("%s", err)
 	}
 	c <- results
 }
@@ -150,8 +150,11 @@ func createTableTUI(exercises []workouts) {
 
 func GetBests(db *sql.DB) bool {
 	var exercises []workouts
-	dbRows, _ :=
+	dbRows, err :=
 		db.Query("SELECT exercise, MAX(weight), reps, date FROM gym_routine GROUP BY exercise ORDER BY weight,reps DESC LIMIT 50")
+	if err != nil {
+		log.Fatal("Select Bests query error: " + err.Error())
+	}
 	for dbRows.Next() {
 		workout := workouts{}
 		dbRows.Scan(&workout.exercise, &workout.weight, &workout.rep, &workout.date)
@@ -161,14 +164,17 @@ func GetBests(db *sql.DB) bool {
 
 	if Quitting {
 		return true
-	} 
+	}
 	return false
 }
 
 func GetHistory(db *sql.DB) bool {
 	var exercises []workouts
-	dbRows, _ :=
+	dbRows, err :=
 		db.Query("SELECT id, exercise, weight, reps, date FROM gym_routine WHERE weight != 0 OR reps != 0 ORDER BY id ASC LIMIT 50")
+	if err != nil {
+		log.Fatal("Select History error: " + err.Error())
+	}
 	for dbRows.Next() {
 		workout := workouts{}
 		dbRows.Scan(&workout.id, &workout.exercise, &workout.weight, &workout.rep, &workout.date)
@@ -178,8 +184,6 @@ func GetHistory(db *sql.DB) bool {
 
 	if Quitting {
 		return true
-	} 
+	}
 	return false
 }
-
-

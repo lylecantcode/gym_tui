@@ -26,7 +26,7 @@ Assuming the TUI is already running:
 
 ```sh
 What exercise did you do?
-
+~~
   [ ] Bench Press []
 > [ ] Squats [(50kg x 10)]
 
@@ -41,13 +41,13 @@ I came across the package [BubbleTea](https://github.com/charmbracelet/bubbletea
 My personal usage is via the android app [Termux](https://play.google.com/store/apps/details?id=com.termux&hl=en_GB&gl=US). This allows me to easily track my workouts on the fly but also further exaggerated the awkwardness of use. 
 
 ## Future Plans
-I would like to add a start menu, where you can choose between:
-1) Start your workout 
-2) View past workouts (a list of days you can view, with an array of exercises done as a summary)
-3) Add remove/exercises
-4) View personal bests
-(Assess whether it is worth implementing go routines for the db calls/any disadvantages?
-Would need to implement channels/mutex if delete function remains.)
+
+### Completed
+~~I would like to add a start menu, where you can choose between:~~  
+~~1) Start your workout~~  
+~~2) View past workouts (a list of days you can view, with an array of exercises done as a summary)~~  
+~~3) Add remove/exercises~~  
+~~4) View personal bests~~  
 
 
 ## Usage
