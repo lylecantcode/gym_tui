@@ -131,7 +131,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	}
-	// used to drive the addNewSet functionality.
+	// used to drive the addNewSet functionality
 	cmd = m.updateInputs(msg)
 	return m, cmd
 }
@@ -144,18 +144,13 @@ func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
 }
 
 func (m *model) addNewSet() {
-	// obtains the value from the "add new" line
-	ex := m.choices[m.cursor]
-	// create channel, c
-	// rec := make(chan []string)
-	c := make(chan []string)
-	go m.regExFiltering(c)
-	go m.setMapping(ex, c)
-	set := <-c
-
+	// using regex to separate out the 2 values, for the weight and reps
+	// this allows any separator to be used for the 2 values
+	set := m.regExFiltering()	
 	if len(set) == 2 {
-		c <- set
-		m.addToDB(set, ex)
+		m.setMapping(set)
+		// using a go routine here will minimise any delay in usage of GUI
+		go m.addToDB(set, m.choices[m.cursor])
 	}
 	// checks for existing map and if none, initiates map
 	// unfocus/deselect the "add new" line
@@ -166,20 +161,20 @@ func (m *model) addNewSet() {
 	m.typing = false
 }
 
-func (m *model) regExFiltering(c chan []string) {
+func (m *model) regExFiltering() []string {
 	// get value from the user inputted field.
 	newSet := m.addingNew.Value()
 	// check for groupings of numbers and ignores any other values.
 	re := regexp.MustCompile(`\d+`)
-	set := re.FindAllString(newSet, -1)
-	c <- set
+	return re.FindAllString(newSet, -1)
+
 }
 
-func (m *model) setMapping(ex string, c chan []string) {
-	if m.weights /*[ex]*/ == nil { // may need to keep if allowing for adding new exercises
+func (m *model) setMapping(set []string) {
+	if m.weights == nil { // may need to keep if allowing for adding new exercises
 		m.weights = make(map[string][]string)
 	}
-	set := <-c
+	ex := m.choices[m.cursor]
 	m.weights[ex] = append(m.weights[ex], "("+set[0]+"kg x "+set[1]+")")
 }
 
@@ -218,6 +213,8 @@ func (m *model) addToDB(set []string, exercise ...string) {
 			}
 		}
 	}
+	// closes the go routine after process is complete.
+	return
 }
 
 func StartWorkout(database *sql.DB) bool {
