@@ -8,7 +8,6 @@ import (
 	"github.com/lylecantcode/gym_tui/workout"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
-	"os"
 )
 
 // create a basic database table if it doesn't exist.
@@ -22,7 +21,10 @@ func dbStartUp() *sql.DB {
 	}
 	statement, err :=
 		database.Prepare("CREATE TABLE IF NOT EXISTS gym_routine (id INTEGER PRIMARY KEY, exercise VARCHAR NOT NULL, weight INTEGER DEFAULT 0, reps INTEGER DEFAULT 0, date TEXT DEFAULT CURRENT_DATE)")
-	statement.Exec()
+	if err != nil {
+		log.Fatal("error with creation statement: " + err.Error())
+	}
+	_, err = statement.Exec()
 	if err != nil {
 		log.Fatal("error creating table: " + err.Error())
 	}
@@ -33,8 +35,7 @@ func main() {
 	db = dbStartUp()
 	p := tea.NewProgram(initialModel())
 	if err := p.Start(); err != nil {
-		fmt.Printf("Gym TUI encountered the following error: %v", err)
-		os.Exit(1)
+		log.Fatal("Gym TUI encountered the following error: %v", err)
 	}
 }
 
@@ -50,7 +51,6 @@ func initialModel() model {
 	return menu
 }
 
-// try without this first
 func (m model) Init() tea.Cmd {
 	return nil
 }
@@ -71,13 +71,14 @@ func (m model) View() string {
 	}
 
 	// The footer
-	s += "\nNavigate using the arrow keys and use enter to select.\nPress Q or Ctrl+C to quit."
+	s += `
+Navigate using the arrow keys and use enter to select.
+Press Q or Ctrl+C to quit.`
 	return s
 
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	p := tea.NewProgram(initialModel())
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
@@ -106,21 +107,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		// The "enter" key allows for a set to be inputted.
 		case "enter":
-			var exit bool
 			switch m.cursor {
 			case 0:
-				exit = workout.StartWorkout(db)
+				return workout.StartWorkout(db, m), cmd
 			case 1:
-				exit = history.GetHistory(db)
+				return history.GetHistory(db, m), cmd
 			case 2:
-				exit = history.GetBests(db)
+				return history.GetBests(db, m), cmd
 			}
-			if exit {
-				// os.Exit(1)
-				return m, tea.Quit
-			}
-			p.StartReturningModel()
-
 		}
 	}
 	return m, cmd

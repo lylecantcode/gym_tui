@@ -1,0 +1,2 @@
+1) db migrations instead of an in-line string
+(or string literal with lines)
