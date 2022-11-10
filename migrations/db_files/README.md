@@ -1,7 +1,8 @@
 # Migrations 
 
 ## Warnings
-Migrations are non-reversible in their current implementation.
+Migrations are non-reversible in their current implementation.  
+The idea of this, is that a change can be reverted, via another "up" migration anyway.  
 
 ## Usage
 * Create a new file starting with a 3 digit number (e.g. 001 or 123).  
