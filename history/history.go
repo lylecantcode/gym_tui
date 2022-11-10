@@ -17,12 +17,11 @@ var baseStyle = lipgloss.NewStyle().
 	BorderStyle(lipgloss.NormalBorder()).
 	BorderForeground(lipgloss.Color("240"))
 
-
 type model struct {
 	table      table.Model
 	rows       int
 	searchTerm map[string]string
-	mainMenu tea.Model
+	mainMenu   tea.Model
 }
 
 type workouts struct {
@@ -88,7 +87,7 @@ func (m *model) searchWiki(c chan string) {
 		content, err := page.GetContent()
 		if err != nil {
 			results = fmt.Sprintf("%s", err)
-		} 
+		}
 		results, _, _ = strings.Cut(content, ".")
 		// this is still being cropped by the TUI :(
 		// think because of screen width.
