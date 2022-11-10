@@ -17,11 +17,13 @@ Saves the workout in an SQLite3 database.
 I just did a set of squats and I want to add my set of 50 kg and 10 reps.
 Assuming the TUI is already running:
 
-1) Navigate using the arrow keys to the exercise (squats).
-2) Click enter.
+1) From the main menu, select workouts.
+    * Do this via the arrow keys and enter.
+2) Navigate using the arrow keys to the exercise (squats).
+3) Click enter.
     * This will allow you to enter text into the "add new" line.
-3) Enter your weight and reps, (50 x 10).
-4) Click enter to submit.
+4) Enter your weight and reps, (50 x 10).
+5) Click enter to submit.
 	* This will now display next to the exercise.
 
 ```sh
@@ -31,6 +33,11 @@ What exercise did you do?
 > [ ] Squats [(50kg x 10)]
 
 ```
+
+6) This can now be viewed from the history.
+    * To access the history:
+      * "q" to go back to main menu.
+      * navigate to history and select using enter.
 
 
 ## Background

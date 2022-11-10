@@ -5,6 +5,7 @@ import (
 	"fmt"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/lylecantcode/gym_tui/history"
+	migrate "github.com/lylecantcode/gym_tui/migrations"
 	"github.com/lylecantcode/gym_tui/workout"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
@@ -13,29 +14,21 @@ import (
 // create a basic database table if it doesn't exist.
 var db *sql.DB
 
-func dbStartUp() *sql.DB {
-	database, err :=
+func dbStartUp() {
+	var err error
+	db, err =
 		sql.Open("sqlite3", "./gym_routine.db")
 	if err != nil {
 		log.Fatal("error opening DB: " + err.Error())
 	}
-	statement, err :=
-		database.Prepare("CREATE TABLE IF NOT EXISTS gym_routine (id INTEGER PRIMARY KEY, exercise VARCHAR NOT NULL, weight INTEGER DEFAULT 0, reps INTEGER DEFAULT 0, date TEXT DEFAULT CURRENT_DATE)")
-	if err != nil {
-		log.Fatal("error with creation statement: " + err.Error())
-	}
-	_, err = statement.Exec()
-	if err != nil {
-		log.Fatal("error creating table: " + err.Error())
-	}
-	return database
+	migrate.VersionCheck(db)
 }
 
 func main() {
-	db = dbStartUp()
+	go dbStartUp()
 	p := tea.NewProgram(initialModel())
 	if err := p.Start(); err != nil {
-		log.Fatal("Gym TUI encountered the following error: %v", err)
+		log.Fatalf("Gym TUI encountered the following error: %v", err)
 	}
 }
 

@@ -18,16 +18,16 @@ type model struct {
 	selected  map[int]struct{}    // which weights are selected
 	addingNew textinput.Model     // used to add new values
 	typing    bool                // used to stop delete or quit triggering accidentally
-	mainMenu tea.Model
-	db *sql.DB
+	mainMenu  tea.Model
+	db        *sql.DB
 }
 
 func initialModel(database *sql.DB, mainMenu tea.Model) model {
 	exercises := model{
 		selected: make(map[int]struct{}),
 		mainMenu: mainMenu,
-		db: database,
-}
+		db:       database,
+	}
 	// values := exercises.getValuesFromDB()
 	insertModel := textinput.New()
 	insertModel.Placeholder = "After selecting, type Weight (kg) x Reps here"
@@ -49,7 +49,7 @@ func (m model) Init() tea.Cmd {
 
 func (m model) View() string {
 	// The header
-	s := "\n\nWhat exercise did you do?\n\n"
+	s := "What exercise did you do?\n\n"
 
 	// Iterate over our choices.
 	for i := 0; i < len(m.choices); i++ {
@@ -147,7 +147,7 @@ func (m *model) updateInputs(msg tea.Msg) tea.Cmd {
 func (m *model) addNewSet() {
 	// using regex to separate out the 2 values, for the weight and reps
 	// this allows any separator to be used for the 2 values
-	set := m.regExFiltering()	
+	set := m.regExFiltering()
 	if len(set) == 2 {
 		m.setMapping(set)
 		// using a go routine here will minimise any delay in usage of GUI
